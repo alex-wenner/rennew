@@ -1,0 +1,1 @@
+"""Bundled React application assets."""

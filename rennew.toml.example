@@ -1,0 +1,8 @@
+[server]
+host = "127.0.0.1"
+port = 7337
+open_browser = true
+
+[storage]
+# The default is the operating system's application data directory.
+# path = ".rennew/rennew.lbdb"
