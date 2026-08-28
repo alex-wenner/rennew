@@ -3,12 +3,14 @@ import webbrowser
 from pathlib import Path
 
 import click
+import httpx
 import uvicorn
 
 from rennew.api.app import create_app
 from rennew.config.loader import load_settings
+from rennew.graph.contracts import GraphQueryResult
 from rennew.graph.ladybug import LadybugGraphStore, UnsafeGraphQueryError
-from rennew.sessions.models import SessionCreate
+from rennew.sessions.models import Session, SessionCreate
 from rennew.sessions.service import SessionService
 
 
@@ -27,6 +29,17 @@ def _serve(host: str, port: int, *, open_browser: bool, reload: bool = False) ->
         )
         return
     uvicorn.run(create_app(), host=host, port=port)
+
+
+def _get_live_server_url(host: str, port: int) -> str | None:
+    url = f"http://{host}:{port}/api/v1"
+    try:
+        resp = httpx.get(f"{url}/health", timeout=0.4)
+        if resp.status_code == 200:
+            return url
+    except Exception:
+        pass
+    return None
 
 
 @click.group()
@@ -80,14 +93,30 @@ def graph_group() -> None:
 def graph_query(cypher: str, database: Path | None) -> None:
     """Execute a read-only Cypher query against the session graph."""
     settings = load_settings()
-    store = LadybugGraphStore(database or settings.storage.path)
-    store.initialize()
-    try:
-        result = store.query_readonly(cypher)
-    except UnsafeGraphQueryError as error:
-        raise click.ClickException(str(error)) from error
-    finally:
-        store.close()
+    live_url = (
+        _get_live_server_url(settings.server.host, settings.server.port)
+        if not database
+        else None
+    )
+
+    if live_url:
+        try:
+            resp = httpx.post(f"{live_url}/graph/query", json={"cypher": cypher}, timeout=10)
+            if resp.status_code != 200:
+                detail = resp.json().get("detail", resp.text)
+                raise click.ClickException(detail)
+            result = GraphQueryResult.model_validate(resp.json())
+        except httpx.HTTPError as err:
+            raise click.ClickException(f"API request failed: {err}") from err
+    else:
+        store = LadybugGraphStore(database or settings.storage.path)
+        store.initialize()
+        try:
+            result = store.query_readonly(cypher)
+        except UnsafeGraphQueryError as error:
+            raise click.ClickException(str(error)) from error
+        finally:
+            store.close()
 
     if not result.rows:
         click.echo("0 rows returned.")
@@ -122,13 +151,28 @@ def session_group() -> None:
 def session_list(database: Path | None) -> None:
     """List all sessions in the local graph."""
     settings = load_settings()
-    store = LadybugGraphStore(database or settings.storage.path)
-    store.initialize()
-    try:
-        service = SessionService(store)
-        sessions = service.list_sessions()
-    finally:
-        store.close()
+    live_url = (
+        _get_live_server_url(settings.server.host, settings.server.port)
+        if not database
+        else None
+    )
+
+    if live_url:
+        try:
+            resp = httpx.get(f"{live_url}/sessions", timeout=5)
+            if resp.status_code != 200:
+                raise click.ClickException(resp.text)
+            sessions = [Session.model_validate(item) for item in resp.json()]
+        except httpx.HTTPError as err:
+            raise click.ClickException(f"API request failed: {err}") from err
+    else:
+        store = LadybugGraphStore(database or settings.storage.path)
+        store.initialize()
+        try:
+            service = SessionService(store)
+            sessions = service.list_sessions()
+        finally:
+            store.close()
 
     if not sessions:
         click.echo("No sessions found.")
@@ -158,12 +202,31 @@ def session_create(
 ) -> None:
     """Create a new session."""
     settings = load_settings()
-    store = LadybugGraphStore(database or settings.storage.path)
-    store.initialize()
-    try:
-        service = SessionService(store)
-        session = service.create(SessionCreate(title=title, provider=provider, model=model))
-    finally:
-        store.close()
+    live_url = (
+        _get_live_server_url(settings.server.host, settings.server.port)
+        if not database
+        else None
+    )
+
+    if live_url:
+        try:
+            resp = httpx.post(
+                f"{live_url}/sessions",
+                json={"title": title, "provider": provider, "model": model},
+                timeout=5,
+            )
+            if resp.status_code != 201:
+                raise click.ClickException(resp.text)
+            session = Session.model_validate(resp.json())
+        except httpx.HTTPError as err:
+            raise click.ClickException(f"API request failed: {err}") from err
+    else:
+        store = LadybugGraphStore(database or settings.storage.path)
+        store.initialize()
+        try:
+            service = SessionService(store)
+            session = service.create(SessionCreate(title=title, provider=provider, model=model))
+        finally:
+            store.close()
 
     click.echo(f"Created session {session.id}: {session.title}")
