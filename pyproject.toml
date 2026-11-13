@@ -24,22 +24,11 @@ dependencies = [
   "ladybug>=0.19,<1",
   "platformdirs>=4.3,<5",
   "pydantic>=2.11,<3",
+  "rich>=13.9,<14",
   "uvicorn[standard]>=0.35,<1",
 ]
 
 [project.optional-dependencies]
-openai = ["openai>=1.100"]
-codex = ["openai-codex>=0.1"]
-anthropic = ["anthropic>=0.70"]
-copilot = ["github-copilot-sdk>=1.0"]
-bedrock = ["boto3>=1.35"]
-providers = [
-  "anthropic>=0.70",
-  "boto3>=1.35",
-  "github-copilot-sdk>=1.0",
-  "openai>=1.100",
-  "openai-codex>=0.1",
-]
 dev = [
   "httpx>=0.28",
   "mypy>=1.17",
@@ -75,7 +64,7 @@ strict = true
 packages = ["rennew"]
 
 [[tool.mypy.overrides]]
-module = ["ladybug", "ladybug.*", "boto3", "boto3.*", "botocore", "botocore.*", "copilot", "copilot.*", "openai_codex", "openai_codex.*"]
+module = ["ladybug", "ladybug.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

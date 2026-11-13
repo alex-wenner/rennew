@@ -5,63 +5,47 @@ import { useState } from "react";
 
 import { queryGraph } from "../api";
 
-const initialQuery = `MATCH (s:Session)
-RETURN s.id AS id, s.title AS title, s.status AS status
-ORDER BY s.updated_at DESC`;
+const initialQuery = `MATCH (s:Session)-[:CHANGED]->(f:FileChange)
+RETURN s.title AS session, f.path AS path, f.additions AS adds, f.deletions AS dels
+ORDER BY f.created_at DESC LIMIT 50`;
 
 export function QueryConsole() {
   const [query, setQuery] = useState(initialQuery);
-  const execution = useMutation({ mutationFn: () => queryGraph(query) });
+  const run = useMutation({ mutationFn: () => queryGraph(query) });
 
   return (
-    <section className="query-console">
-      <div className="query-console__editor">
-        <div className="panel-heading">
-          <span>READ-ONLY CYPHER</span>
-          <button onClick={() => execution.mutate()} type="button">
-            {execution.isPending ? "RUNNING" : "RUN QUERY"}
-          </button>
-        </div>
+    <div className="panel">
+      <div className="cypher">
         <CodeMirror
-          value={query}
-          height="230px"
-          theme="dark"
+          basicSetup={{ foldGutter: false, highlightActiveLine: false, lineNumbers: false }}
           extensions={[sql()]}
+          height="140px"
           onChange={setQuery}
-          basicSetup={{ foldGutter: false, highlightActiveLine: false }}
+          theme="dark"
+          value={query}
         />
-        {execution.error ? <p className="query-error">{execution.error.message}</p> : null}
       </div>
-      <div className="query-console__results">
-        <div className="panel-heading">
-          <span>RESULT</span>
-          <small>{execution.data?.rows.length ?? 0} ROWS</small>
-        </div>
-        {execution.data && execution.data.rows.length > 0 ? (
-          <div className="result-table-wrap">
-            <table className="result-table">
-              <thead>
-                <tr>
-                  {execution.data.columns.map((column) => (
-                    <th key={column}>{column}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {execution.data.rows.map((row, index) => (
-                  <tr key={index}>
-                    {execution.data.columns.map((column) => (
-                      <td key={column}>{String(row[column] ?? "")}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="result-empty">Run a query to inspect the underlying session graph.</p>
+      <div className="panel__bar">
+        <span className="muted">{run.data ? `${run.data.rows.length} rows` : "read-only Cypher"}</span>
+        <button className="btn" disabled={run.isPending} onClick={() => run.mutate()} type="button">
+          Run
+        </button>
+      </div>
+      {run.error && <div className="error">{run.error.message}</div>}
+      <div className="panel__scroll">
+        {run.data && run.data.rows.length > 0 && (
+          <table className="table">
+            <thead>
+              <tr>{run.data.columns.map((c) => <th key={c}>{c}</th>)}</tr>
+            </thead>
+            <tbody>
+              {run.data.rows.map((row, i) => (
+                <tr key={i}>{run.data!.columns.map((c) => <td key={c}>{String(row[c] ?? "")}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
-    </section>
+    </div>
   );
 }

@@ -6,3 +6,13 @@ open_browser = true
 [storage]
 # The default is the operating system's application data directory.
 # path = ".rennew/rennew.lbdb"
+
+[agent]
+# Workspace the coding agent is confined to. Defaults to the current directory.
+# workspace = "."
+# Maximum tool-calling steps per turn.
+max_steps = 12
+# Default provider and model (can also be set per session or per prompt).
+# Run `ren providers` to list configured providers and discover live models.
+# provider = "openai"
+# model = "gpt-5.6-terra"   # or gpt-5.6-sol, gpt-5.6-luna, claude-sonnet-5, claude-fable-5-1

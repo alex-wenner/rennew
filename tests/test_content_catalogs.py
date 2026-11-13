@@ -1,5 +1,7 @@
+from pathlib import Path
+
+from rennew.agent.skills import SkillCatalog
 from rennew.prompts import PromptCatalog
-from rennew.skills import SkillCatalog
 
 
 def test_builtin_prompts_are_loadable() -> None:
@@ -8,5 +10,5 @@ def test_builtin_prompts_are_loadable() -> None:
 
 
 def test_builtin_skills_are_discoverable() -> None:
-    skills = SkillCatalog().discover()
-    assert {skill.name for skill in skills} == {"change-validator", "repository-explorer"}
+    skills = SkillCatalog.default(Path(".")).discover()
+    assert {"change-validator", "repository-explorer"}.issubset({skill.name for skill in skills})

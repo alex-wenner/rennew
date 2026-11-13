@@ -20,8 +20,14 @@ def create_app(settings: RennewSettings | None = None) -> FastAPI:
         runtime = RennewRuntime.open(resolved_settings)
         app.state.runtime = runtime
         try:
+            await runtime.connect_mcp()
+        except Exception:  # noqa: BLE001 - MCP is optional
+            pass
+        try:
             yield
         finally:
+            await runtime.auth.close()
+            await runtime.mcp.close()
             runtime.close()
 
     app = FastAPI(
@@ -55,6 +61,10 @@ def _mount_frontend(app: FastAPI) -> None:
 
     @app.get("/{path:path}", include_in_schema=False)
     def single_page_app(path: str) -> FileResponse:
+        if path == "api" or path.startswith("api/"):
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=404, detail="Not found.")
         requested = static_root / path
         if path and requested.is_file() and static_root in requested.parents:
             return FileResponse(requested)

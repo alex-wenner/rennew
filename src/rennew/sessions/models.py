@@ -24,6 +24,8 @@ class SessionCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     provider: str | None = Field(default=None, max_length=100)
     model: str | None = Field(default=None, max_length=200)
+    mode: str = Field(default="solo", max_length=50)
+    workspace: str | None = Field(default=None, max_length=500)
 
 
 class Session(BaseModel):
@@ -32,6 +34,12 @@ class Session(BaseModel):
     status: SessionStatus
     provider: str | None
     model: str | None
+    mode: str = "solo"
+    workspace: str | None = None
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_reasoning_tokens: int = 0
+    total_cost_usd: float = 0.0
     created_at: datetime
     updated_at: datetime
 
@@ -112,3 +120,55 @@ class Compaction(BaseModel):
     tokens_saved: int
     created_at: datetime
 
+
+class ToolCallRecord(BaseModel):
+    id: str
+    name: str
+    input: dict[str, object] = Field(default_factory=dict)
+    output: dict[str, object] | None = None
+    status: str = "completed"
+    duration_ms: int = 0
+
+
+class TokenMetrics(BaseModel):
+    input: int = 0
+    output: int = 0
+    reasoning: int = 0
+    cache_read: int = 0
+    cache_write: int = 0
+    total: int = 0
+    cost_usd: float = 0.0
+
+
+class SessionMessage(BaseModel):
+    id: str
+    session_id: str
+    role: str  # "user" | "assistant" | "system"
+    content: str
+    reasoning: str | None = None
+    tool_calls: list[ToolCallRecord] = Field(default_factory=list)
+    tokens: TokenMetrics = Field(default_factory=TokenMetrics)
+    created_at: datetime
+
+
+class PromptRequest(BaseModel):
+    prompt: str = Field(min_length=1)
+    mode: str = "solo"
+    provider: str | None = None
+    model: str | None = None
+    reasoning_effort: str | None = None
+
+
+class FileChange(BaseModel):
+    id: str
+    session_id: str
+    message_id: str | None = None
+    tool_call_id: str | None = None
+    path: str
+    kind: str  # "create" | "edit" | "delete"
+    before_hash: str
+    after_hash: str
+    additions: int = 0
+    deletions: int = 0
+    diff: str
+    created_at: datetime

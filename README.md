@@ -1,59 +1,59 @@
 # Rennew
 
-Rennew is a local-first, Python coding-agent runtime where sessions are the
-first-class unit of work. Sessions can hand work to one another, validate one
-another, and overlap through shared tasks, code, memory, and artifacts. The
-complete execution model is stored as a queryable local graph.
+Renewed agent workflows. Simple, graph first.
 
-Rennew is in its initial architecture phase. The current foundation provides:
+Rennew is a local Python coding-agent harness. Sessions, tools, memories, and
+handoffs live in one LadybugDB graph. Providers plug in as adapters. You run
+the agent from the CLI, the web UI, or both: CLI does the work, the web can
+just watch the graph.
 
-- A session-centric LadybugDB graph
-- A local FastAPI server
-- A bundled React and TypeScript interface
-- Read-only Cypher querying from the CLI and web UI
-- Explicit homes for providers, orchestration modes, skills, tools, and prompts
-- Initial handoff and overlap primitives
+OpenCode and Oh My Pi informed the design. Rennew does not wrap either of them.
 
-## Development
+## What it does
 
-Requirements:
+- Real LLM turns through OpenAI Responses, OpenAI Completions, and Anthropic Messages
+- Pluggable providers: OpenAI, Anthropic, OpenRouter, Groq, Together, Ollama, LM Studio, vLLM
+- Native tools confined to the workspace, plus MCP stdio servers and on-demand skills
+- Graph memory (`remember` / `recall`) and compaction instead of dumping full transcripts
+- CLI for `chat` / `run`, web for chat + graph observer
 
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/)
-- Node.js 20+
-
-Install the Python environment:
+## Start
 
 ```console
 uv sync --extra dev
-```
-
-Install and build the web interface:
-
-```console
-cd frontend
-npm install
-npm run build
-```
-
-Start Rennew:
-
-```console
+cd frontend && npm install && npm run build && cd ..
 uv run ren ui
 ```
 
-During frontend development, run Vite separately and point it at the local API:
+Connect a provider in the UI **Providers** panel, or:
 
 ```console
-uv run ren server --reload
-cd frontend
-npm run dev
+uv run ren connect openai
+uv run ren run "Inspect this repo and summarize the agent loop."
+uv run ren chat
 ```
+
+Local models need no key:
+
+```console
+uv run ren run --provider ollama --model llama3.2 "List the Python packages."
+```
+
+## Modes
+
+| Command | What it runs |
+|---|---|
+| `ren ui` | Full web app: chat, providers, graph, telemetry |
+| `ren server` | API + graph observer; drive agents from the CLI |
+| `ren chat` | Interactive agent in the terminal |
+| `ren run "..."` | One-shot turn, persisted to the graph |
+| `ren providers` | Connection status |
+| `ren session list` | Sessions in the graph |
+| `ren graph query 'MATCH (s:Session) RETURN s.title'` | Read-only Cypher |
 
 ## Configuration
 
-Rennew runs without a project configuration file. Add `rennew.toml` only when
-you need to override a default:
+Optional `rennew.toml`:
 
 ```toml
 [server]
@@ -61,14 +61,20 @@ port = 7337
 
 [storage]
 path = ".rennew/rennew.lbdb"
+
+[agent]
+max_steps = 12
+provider = "openai"
+model = "gpt-5.6-terra"
 ```
 
-Credentials are never stored in `rennew.toml`. Provider adapters read them from
-the operating-system keyring, official provider login, or environment variables.
+Add extra providers in `.rennew/providers.json`. Keys stay in
+`~/.rennew/credentials.json` or environment variables (`OPENAI_API_KEY`,
+`ANTHROPIC_API_KEY`, …). Nothing is uploaded.
 
-## Architecture
-
-See [`ARCHITECTURE.md`](ARCHITECTURE.md) for package boundaries and design rules.
+Current defaults (September 2026): `gpt-5.6-terra` / `gpt-5.6-sol` /
+`gpt-5.6-luna`, `claude-sonnet-5` / `claude-opus-5` / `claude-haiku-4-5`.
+The Providers panel can also load live `/models` lists from a connected backend.
 
 ## License
 

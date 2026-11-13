@@ -1,59 +1,61 @@
 from collections.abc import AsyncIterator
-from typing import Protocol
+from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
 
-class ProviderCapabilities(BaseModel):
-    documentation_url: str = ""
-    documentation_version: str = "2026-latest"
-    auth_methods: list[str] = Field(default_factory=list)
-    streaming: bool = False
-    tool_calling: bool = False
-    parallel_tool_calls: bool = False
-    reasoning_controls: bool = False
-    structured_output: bool = False
-    image_input: bool = False
-    context_window: int | None = None
-    provider_options: dict[str, object] = Field(default_factory=dict)
+class ToolSchema(BaseModel):
+    name: str
+    description: str = ""
+    parameters: dict[str, Any] = Field(default_factory=dict)
 
 
-class ModelRequest(BaseModel):
+class ProviderMessage(BaseModel):
+    role: str
+    content: str = ""
+    reasoning: str | None = None
+    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    tool_call_id: str | None = None
+    name: str | None = None
+
+
+class ChatRequest(BaseModel):
     model: str
-    messages: list[dict[str, object]]
-    tools: list[dict[str, object]] = Field(default_factory=list)
-    options: dict[str, object] = Field(default_factory=dict)
+    messages: list[ProviderMessage]
+    tools: list[ToolSchema] = Field(default_factory=list)
+    temperature: float | None = None
+    max_tokens: int | None = None
+    reasoning_effort: str | None = None
+    extra: dict[str, Any] = Field(default_factory=dict)
 
 
-class ModelEvent(BaseModel):
-    kind: str
-    data: dict[str, object] = Field(default_factory=dict)
+class StreamDelta(BaseModel):
+    kind: str  # "text" | "reasoning" | "tool_call" | "usage" | "finish" | "error"
+    text: str = ""
+    tool_call: dict[str, Any] | None = None
+    usage: dict[str, int] | None = None
+    finish_reason: str | None = None
+    error: str | None = None
 
 
-class CodingTask(BaseModel):
-    session_id: str
-    instruction: str
-    repository_path: str
-    options: dict[str, object] = Field(default_factory=dict)
+class ProviderCapabilities(BaseModel):
+    streaming: bool = True
+    tool_calling: bool = True
+    parallel_tool_calls: bool = False
+    reasoning: bool = False
+    context_window: int | None = None
+    auth_env: list[str] = Field(default_factory=list)
 
 
-class CodingResult(BaseModel):
-    summary: str
-    artifacts: list[str] = Field(default_factory=list)
-    raw: dict[str, object] = Field(default_factory=dict)
+class ChatProvider(Protocol):
+    """A pluggable model provider. Implement this to add a backend to Rennew."""
 
-
-class ModelBackend(Protocol):
     name: str
 
     def capabilities(self) -> ProviderCapabilities: ...
 
-    def stream(self, request: ModelRequest) -> AsyncIterator[ModelEvent]: ...
+    def stream(self, request: ChatRequest) -> AsyncIterator[StreamDelta]: ...
 
 
-class CodingAgentBackend(Protocol):
-    name: str
-
-    def capabilities(self) -> ProviderCapabilities: ...
-
-    async def execute(self, task: CodingTask) -> CodingResult: ...
+def estimate_tokens(text: str) -> int:
+    return max(1, len(text) // 4) if text else 0

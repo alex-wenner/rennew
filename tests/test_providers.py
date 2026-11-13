@@ -1,23 +1,47 @@
-from rennew.providers import create_default_registry
+from rennew.providers.catalog import build_registry, default_catalog
+from rennew.providers.registry import PROVIDER_META, provider_is_connected
 
 
-def test_default_providers_registered_with_docs() -> None:
-    registry = create_default_registry()
-    names = registry.names()
+def test_shipped_provider_set() -> None:
+    assert set(PROVIDER_META) == {
+        "openai",
+        "anthropic",
+        "copilot",
+        "bedrock",
+        "opencode",
+        "opencode-go",
+    }
+    assert PROVIDER_META["copilot"]["auth"] == "github"
+    assert PROVIDER_META["openai"]["auth"] == "api_key|oauth"
 
-    assert "openai" in names["models"]
-    assert "anthropic" in names["models"]
-    assert "bedrock" in names["models"]
-    assert "opencode-go" in names["models"]
-    assert "copilot" in names["agents"]
-    assert "codex" in names["agents"]
 
-    # Verify documentation URL citations
-    openai_cap = registry.model("openai").capabilities()
-    assert "https://platform.openai.com" in openai_cap.documentation_url
+def test_registry_builds_all_providers_and_reports_disconnected() -> None:
+    registry = build_registry(default_catalog(), stored={}, persist=None)
+    assert set(registry.list_ids()) == set(PROVIDER_META)
+    for provider_id in registry.list_ids():
+        provider = registry.get(provider_id)
+        assert provider is not None
+        assert provider_is_connected(provider) is False
 
-    bedrock_cap = registry.model("bedrock").capabilities()
-    assert "docs.aws.amazon.com" in bedrock_cap.documentation_url
 
-    copilot_cap = registry.agent("copilot").capabilities()
-    assert "github.com/github/copilot-sdk" in copilot_cap.documentation_url
+def test_stored_credentials_connect_providers() -> None:
+    stored = {
+        "openai": "sk-test",
+        "anthropic": "sk-ant-test",
+        "copilot": {"github_token": "gho_x", "copilot_token": "tid", "expires_at": 9e12},
+        "openai-chatgpt": {"access_token": "eyJ.x.y", "expires_at": 9e12},
+    }
+    registry = build_registry(default_catalog(), stored=stored, persist=None)
+    assert provider_is_connected(registry.get("openai"))  # type: ignore[arg-type]
+    assert provider_is_connected(registry.get("anthropic"))  # type: ignore[arg-type]
+    assert provider_is_connected(registry.get("copilot"))  # type: ignore[arg-type]
+    assert provider_is_connected(registry.get("bedrock")) is False  # type: ignore[arg-type]
+
+
+def test_openai_accepts_chatgpt_oauth_secret() -> None:
+    stored = {"openai": {"mode": "chatgpt", "access_token": "eyJ.x.y", "expires_at": 9e12}}
+    registry = build_registry(default_catalog(), stored=stored, persist=None)
+    provider = registry.get("openai")
+    assert provider is not None
+    assert provider_is_connected(provider)
+    assert type(provider).__name__ == "ChatGPTProvider"

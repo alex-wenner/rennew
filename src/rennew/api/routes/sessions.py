@@ -2,15 +2,19 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from rennew.agent.loop import ProviderNotConfiguredError, SessionBusyError
 from rennew.api.dependencies import get_runtime
 from rennew.runtime.container import RennewRuntime
 from rennew.sessions.models import (
     Compaction,
     CompactionCreate,
+    FileChange,
     Handoff,
     HandoffCreate,
+    PromptRequest,
     Session,
     SessionCreate,
+    SessionMessage,
     SessionOverlap,
     SessionOverlapCreate,
 )
@@ -74,3 +78,37 @@ def list_compactions(session_id: str, runtime: RuntimeDependency) -> list[Compac
         return runtime.sessions.list_compactions(session_id)
     except SessionNotFoundError as error:
         raise HTTPException(status_code=404, detail="Session not found.") from error
+
+
+@router.get("/{session_id}/messages")
+def list_messages(session_id: str, runtime: RuntimeDependency) -> list[SessionMessage]:
+    try:
+        return runtime.sessions.list_messages(session_id)
+    except SessionNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Session not found.") from error
+
+
+@router.get("/{session_id}/changes")
+def list_changes(session_id: str, runtime: RuntimeDependency) -> list[FileChange]:
+    try:
+        runtime.sessions.get(session_id)
+    except SessionNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Session not found.") from error
+    return runtime.graph.list_file_changes(session_id)
+
+
+@router.post("/{session_id}/prompt", status_code=status.HTTP_200_OK)
+async def prompt_session(
+    session_id: str, request: PromptRequest, runtime: RuntimeDependency
+) -> SessionMessage:
+    """Run one real agent turn: stream the provider, execute tools, persist to the graph."""
+    try:
+        return await runtime.agent.run_turn(session_id, request)
+    except SessionNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Session not found.") from error
+    except ProviderNotConfiguredError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except SessionBusyError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except RuntimeError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error

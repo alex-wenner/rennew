@@ -7,6 +7,7 @@ from rennew.sessions.models import (
     HandoffStatus,
     Session,
     SessionCreate,
+    SessionMessage,
     SessionOverlap,
     SessionOverlapCreate,
     SessionStatus,
@@ -31,6 +32,8 @@ class SessionService:
             status=SessionStatus.ACTIVE,
             provider=command.provider,
             model=command.model,
+            mode=command.mode,
+            workspace=command.workspace,
             created_at=now,
             updated_at=now,
         )
@@ -44,6 +47,13 @@ class SessionService:
         if session is None:
             raise SessionNotFoundError(session_id)
         return session
+
+    def list_messages(self, session_id: str) -> list[SessionMessage]:
+        self.get(session_id)
+        return self._store.list_messages(session_id)
+
+    def add_message(self, message: SessionMessage) -> SessionMessage:
+        return self._store.create_message(message)
 
     def handoff(self, source_session_id: str, command: HandoffCreate) -> Handoff:
         self.get(source_session_id)

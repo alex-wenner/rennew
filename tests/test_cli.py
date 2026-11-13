@@ -10,7 +10,7 @@ runner = CliRunner()
 def test_cli_help() -> None:
     result = runner.invoke(cli, ["--help"])
     assert result.exit_code == 0
-    assert "Rennew: A local-first, session-centric coding agent runtime." in result.output
+    assert "graph first" in result.output.lower()
 
 
 def test_cli_session_create_list_and_graph_query(tmp_path: Path) -> None:
